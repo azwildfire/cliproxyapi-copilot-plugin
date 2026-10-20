@@ -25,6 +25,9 @@ type Service struct {
 
 	modelMu      sync.Mutex
 	modelEntries map[string]modelCacheEntry
+
+	quotaMu      sync.Mutex
+	quotaEntries map[string]quotaCacheEntry
 }
 
 func New(host transport.Host) *Service {
@@ -36,6 +39,7 @@ func New(host transport.Host) *Service {
 		tokenEntries:  make(map[string]copilotTokenEntry),
 		tokenInflight: make(map[string]*tokenFlight),
 		modelEntries:  make(map[string]modelCacheEntry),
+		quotaEntries:  make(map[string]quotaCacheEntry),
 	}
 }
 
@@ -69,4 +73,7 @@ func (s *Service) Shutdown() {
 	s.modelMu.Lock()
 	clear(s.modelEntries)
 	s.modelMu.Unlock()
+	s.quotaMu.Lock()
+	clear(s.quotaEntries)
+	s.quotaMu.Unlock()
 }

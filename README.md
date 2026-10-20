@@ -255,6 +255,33 @@ curl http://127.0.0.1:8317/v1/messages \
 The discovered catalog carries endpoint, context/output limits, tools, vision,
 streaming, and reasoning metadata when GitHub returns it.
 
+## Quota
+
+The plugin registers as the quota provider for `copilot` credentials, so the management
+center's credential list and quota page show a card for every Copilot login, and the generic
+plugin quota endpoints work:
+
+```sh
+curl -X POST -H "Authorization: Bearer $MGMT" -H 'Content-Type: application/json' \
+  -d '{"auth_index":"<auth_index from /v8/management/credentials>"}' \
+  http://127.0.0.1:8317/v0/management/plugins/cliproxyapi-copilot/quota
+```
+
+The data comes from `GET https://api.github.com/copilot_internal/user`, the same endpoint the
+VS Code extension reads, authenticated with the stored GitHub OAuth token. The response is
+normalized to CLIProxyAPI's quota shape:
+
+- `subscription`: the `copilot_plan` (free, individual, individual_pro, business, enterprise)
+  with a readable tier name and the `access_type_sku`.
+- `groups`: one **Copilot allowances** group with a bucket per metered quota from
+  `quota_snapshots` (premium requests first, then chat and completions when they are limited).
+  Unlimited quotas are omitted. The reset time is `quota_reset_date_utc`.
+- `summary`: premium entitlement, remaining and used, plus the overage count when non-zero.
+  Enterprise seats with token-based billing report these in credits.
+
+Results are cached per credential for 30 seconds. Quota reset is not supported; GitHub resets
+allowances on its monthly schedule.
+
 ## Isolated Claude Code session
 
 For the permanent global configuration (via `~/.claude/settings.json` and

@@ -12,7 +12,16 @@ import (
 )
 
 var pluginService = provider.New(hostTransport{})
-var pluginVersion = "0.3.3"
+var pluginVersion = "0.4.0"
+
+// Quota provider RPC methods. The pinned v7.2.118 pluginabi predates the quota contract, so the
+// method names are spelled out here; they match pluginabi.MethodQuota* in CLIProxyAPI v8.
+const (
+	methodQuotaIdentifier = "quota.identifier"
+	methodQuotaDescribe   = "quota.describe"
+	methodQuotaFetch      = "quota.fetch"
+	methodQuotaReset      = "quota.reset"
+)
 
 type lifecycleRequest struct {
 	ConfigYAML []byte `json:"config_yaml"`
@@ -31,6 +40,7 @@ type registrationCapability struct {
 	ExecutorModelScope    pluginapi.ExecutorModelScope `json:"executor_model_scope"`
 	ExecutorInputFormats  []string                     `json:"executor_input_formats"`
 	ExecutorOutputFormats []string                     `json:"executor_output_formats"`
+	QuotaProvider         bool                         `json:"quota_provider"`
 }
 
 type identifierResponse struct {
@@ -95,8 +105,18 @@ func dispatch(method string, request []byte) (any, error) {
 			return nil, errUnmarshal
 		}
 		return pluginService.ModelsForAuth(ctx, req.HostCallbackID, req.AuthModelRequest)
-	case pluginabi.MethodAuthIdentifier, pluginabi.MethodExecutorIdentifier:
+	case pluginabi.MethodAuthIdentifier, pluginabi.MethodExecutorIdentifier, methodQuotaIdentifier:
 		return identifierResponse{Identifier: "copilot"}, nil
+	case methodQuotaDescribe:
+		return pluginService.DescribeQuota(), nil
+	case methodQuotaFetch:
+		var req provider.QuotaFetchRequest
+		if errUnmarshal := json.Unmarshal(request, &req); errUnmarshal != nil {
+			return nil, errUnmarshal
+		}
+		return pluginService.FetchQuota(ctx, req)
+	case methodQuotaReset:
+		return pluginService.ResetQuota(), nil
 	case pluginabi.MethodAuthParse:
 		var req pluginapi.AuthParseRequest
 		if errUnmarshal := json.Unmarshal(request, &req); errUnmarshal != nil {
@@ -185,6 +205,7 @@ func pluginRegistration() registration {
 			ExecutorModelScope:    pluginapi.ExecutorModelScopeOAuth,
 			ExecutorInputFormats:  []string{"openai-response", "claude"},
 			ExecutorOutputFormats: []string{"openai-response", "claude"},
+			QuotaProvider:         true,
 		},
 	}
 }
