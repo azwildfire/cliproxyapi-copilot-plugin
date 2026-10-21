@@ -263,7 +263,7 @@ func buildCopilotQuota(user copilotUser, serverOffsetMs int64) QuotaFetchRespons
 			description += fmt.Sprintf(", %s overage", formatCount(snapshot.OverageCount))
 		}
 		buckets = append(buckets, QuotaBucket{
-			Window:            key,
+			Window:            monthlyWindowName(resetTime),
 			RemainingFraction: clampFraction(fraction),
 			ResetTime:         resetTime,
 			Description:       description,
@@ -288,6 +288,22 @@ func buildCopilotQuota(user copilotUser, serverOffsetMs int64) QuotaFetchRespons
 	}
 	out.Summary = summary
 	return out
+}
+
+// monthlyWindowName names the calendar-month window ending at resetTime by its exact length
+// ("31d"), which is what the management center's timeline needs to draw the bar. The window
+// string is the only bucket field the host forwards besides fraction, reset time and text.
+func monthlyWindowName(resetTime string) string {
+	reset, errParse := time.Parse(time.RFC3339, strings.TrimSpace(resetTime))
+	if errParse != nil {
+		return "monthly"
+	}
+	start := reset.AddDate(0, -1, 0)
+	days := int(math.Round(reset.Sub(start).Hours() / 24))
+	if days <= 0 {
+		return "monthly"
+	}
+	return fmt.Sprintf("%dd", days)
 }
 
 func copilotResetTime(user copilotUser) string {

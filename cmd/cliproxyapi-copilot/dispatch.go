@@ -12,7 +12,7 @@ import (
 )
 
 var pluginService = provider.New(hostTransport{})
-var pluginVersion = "0.4.0"
+var pluginVersion = "0.4.1"
 
 // Quota provider RPC methods. The pinned v7.2.118 pluginabi predates the quota contract, so the
 // method names are spelled out here; they match pluginabi.MethodQuota* in CLIProxyAPI v8.

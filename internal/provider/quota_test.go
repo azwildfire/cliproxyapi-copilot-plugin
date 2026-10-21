@@ -3,6 +3,7 @@ package provider
 import (
 	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func TestBuildCopilotQuotaEnterprise(t *testing.T) {
 		t.Fatalf("unlimited chat/completions must be skipped; groups %+v", quota.Groups)
 	}
 	bucket := quota.Groups[0].Buckets[0]
-	if bucket.Window != "premium_interactions" || math.Abs(bucket.RemainingFraction-0.984804) > 1e-6 {
+	if bucket.Window != "31d" || math.Abs(bucket.RemainingFraction-0.984804) > 1e-6 {
 		t.Fatalf("bucket %+v", bucket)
 	}
 	if bucket.ResetTime != "2026-11-01T00:00:00Z" {
@@ -65,11 +66,11 @@ func TestBuildCopilotQuotaFreePlan(t *testing.T) {
 		t.Fatalf("free plan should meter all three quotas: %+v", quota.Groups)
 	}
 	first := quota.Groups[0].Buckets[0]
-	if first.Window != "premium_interactions" || first.RemainingFraction != 0 {
+	if first.Window != "31d" || first.RemainingFraction != 0 || !strings.HasPrefix(first.Description, "Premium requests") {
 		t.Fatalf("premium bucket should come first and be exhausted: %+v", first)
 	}
-	if quota.Groups[0].Buckets[1].Window != "chat" || math.Abs(quota.Groups[0].Buckets[1].RemainingFraction-0.24) > 1e-9 {
-		t.Fatalf("chat bucket %+v", quota.Groups[0].Buckets[1])
+	if second := quota.Groups[0].Buckets[1]; !strings.HasPrefix(second.Description, "Chat messages") || math.Abs(second.RemainingFraction-0.24) > 1e-9 {
+		t.Fatalf("chat bucket %+v", second)
 	}
 	if first.ResetTime != "2026-11-01T00:00:00Z" {
 		t.Fatalf("date-only reset must become RFC3339: %q", first.ResetTime)
@@ -91,5 +92,17 @@ func TestCopilotPlanName(t *testing.T) {
 		if got := copilotPlanName(plan); got != want {
 			t.Errorf("%s: %q, want %q", plan, got, want)
 		}
+	}
+}
+
+func TestMonthlyWindowName(t *testing.T) {
+	if got := monthlyWindowName("2026-11-01T00:00:00Z"); got != "31d" {
+		t.Fatalf("October window = %q", got)
+	}
+	if got := monthlyWindowName("2026-03-01T00:00:00Z"); got != "28d" {
+		t.Fatalf("February window = %q", got)
+	}
+	if got := monthlyWindowName(""); got != "monthly" {
+		t.Fatalf("missing reset = %q", got)
 	}
 }
